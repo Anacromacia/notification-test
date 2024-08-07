@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receiver</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            background-color: #333;
+            color: white;
+            margin: 0;
+            padding: 10px;
+            text-align: center;
+        }
+
+        form {
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #333;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 5px 10px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        h2 {
+            margin-top: 20px;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .message-header {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Receiver</h1>
+    <form id="form" action="">
+        <label for="username">Username:</label>
+        <input type="text" id="username" title="Enter your username">
+        <button id="connect" type="button">Connect</button>
+        <!-- the rest of the code should be on another line from the username-->
+        <label for="header">Header:</label>
+            <input type="text" id="header" title="Enter the header">
+        <label for="message">Message:</label>
+            <input type="text" id="message" title="Enter your message">
+        <label for="receiver">Receiver:</label>
+            <input type="text" id="receiver" value="receiver">
+        <button id="send" type="button">Send</button>
+        <button id="refresh" type="button">refresh messages and users</button>
+        <h2>Messages</h2>
+        <ul id="messages"></ul>
+        <h2>Users</h2>
+        <ul id="users"></ul>
+        <button id="disconnect" type="button">Disconnect</button>
+    </form>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket;
+
+        document.getElementById('connect').addEventListener('click', function() {
+            var username = document.getElementById('username').value;
+            socket = io('http://localhost:3000', {
+                auth: {
+                    username: username
+                }
+            });
+
+            socket.on('connect', function() {
+                document.getElementById('username').disabled = true;
+                document.getElementById('connect').disabled = true;
+            });
+
+            socket.on('notification', function(data) {
+                var messages = document.getElementById('messages');
+                var li = document.createElement('li');
+                li.innerHTML = `<span class="message-header">${data.header}:</span> ${data.message}`;
+                messages.appendChild(li);
+            });
+
+            socket.on('users', function(data) {
+                var users = document.getElementById('users');
+                users.innerHTML = '';
+                data.forEach(function(user) {
+                    var li = document.createElement('li');
+                    li.textContent = user.username;
+                    users.appendChild(li);
+                });
+            });
+
+            socket.on('refresh', function(data) {
+                // Clear current messages and users
+                document.getElementById('messages').innerHTML = '';
+                document.getElementById('users').innerHTML = '';
+
+                // Append new messages
+                data.messages.forEach(function(message) {
+                // Check if the message is for the receiver
+                // messages have a userid which is in the users array 
+                // and the username is the same as the receiver
+                // if the message is for the receiver then display it
+                for (var i = 0; i < data.users.length; i++) {
+                    if (message.userID == data.users[i].userID && data.users[i].username == socket.auth.username) {
+                        var messages = document.getElementById('messages');
+                        var li = document.createElement('li');
+                        li.innerHTML = `<span class="message-header">${message.header}:</span> ${message.message}`;
+                        messages.appendChild(li);
+                    }
+                }
+                });
+
+                // Append new users
+                data.users.forEach(function(user) {
+                    var li = document.createElement('li');
+                    li.textContent = user.username;
+                    document.getElementById('users').appendChild(li);
+                });
+            });
+        });
+
+        document.getElementById('send').addEventListener('click', function() {
+            var message = document.getElementById('message').value;
+            var header = document.getElementById('header').value;
+            var receiver = document.getElementById('receiver').value;
+            var sender = socket.auth.username;
+            socket.emit('message', {
+                message: message,
+                header: header,
+                receiver: receiver,
+                sender: sender
+            });
+        });
+
+        document.getElementById('refresh').addEventListener('click', function() {
+            socket.emit('refresh');
+        });
+
+        document.getElementById('disconnect').addEventListener('click', function() {
+            socket.emit('disconnect');
+            document.getElementById('username').disabled = false;
+            document.getElementById('connect').disabled = false;
+            socket.disconnect();
+        });
+    </script>
+</body>
+</html>
